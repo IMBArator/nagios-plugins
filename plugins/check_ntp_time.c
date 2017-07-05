@@ -46,6 +46,7 @@ static char *server_address=NULL;
 static char *port="123";
 static int verbose=0;
 static int quiet=0;
+static int ignore_errors=0;
 static char *owarn="60";
 static char *ocrit="120";
 static int time_offset=0;
@@ -247,19 +248,21 @@ int best_offset_server(const ntp_server_results *slist, int nservers){
 
 	/* for each server */
 	for(cserver=0; cserver<nservers; cserver++){
-		/* We don't want any servers that fails these tests */
-		/* Sort out servers that didn't respond or responede with a 0 stratum;
-		 * stratum 0 is for reference clocks so no NTP server should ever report
-		 * a stratum 0 */
-		if ( slist[cserver].stratum == 0){
-			if (verbose) printf("discarding peer %d: stratum=%d\n", cserver, slist[cserver].stratum);
-			continue;
-		}
-		/* Sort out servers with error flags */
-		if ( LI(slist[cserver].flags) == LI_ALARM ){
-			if (verbose) printf("discarding peer %d: flags=%d\n", cserver, LI(slist[cserver].flags));
-			continue;
-		}
+        if ( ignore_errors == 0 ){
+		    /* We don't want any servers that fails these tests */
+		    /* Sort out servers that didn't respond or responede with a 0 stratum;
+		     * stratum 0 is for reference clocks so no NTP server should ever report
+		     * a stratum 0 */
+		    if ( slist[cserver].stratum == 0){
+			    if (verbose) printf("discarding peer %d: stratum=%d\n", cserver, slist[cserver].stratum);
+			    continue;
+		    }
+		    /* Sort out servers with error flags */
+		    if ( LI(slist[cserver].flags) == LI_ALARM ){
+			    if (verbose) printf("discarding peer %d: flags=%d\n", cserver, LI(slist[cserver].flags));
+			    continue;
+		    }
+        }
 
 		/* If we don't have a server yet, use the first one */
 		if (best_server == -1) {
@@ -453,6 +456,7 @@ int process_arguments(int argc, char **argv){
 		{"use-ipv4", no_argument, 0, '4'},
 		{"use-ipv6", no_argument, 0, '6'},
 		{"quiet", no_argument, 0, 'q'},
+		{"ignore-errors", no_argument, 0, 'i'},
 		{"time-offset", optional_argument, 0, 'o'},
 		{"warning", required_argument, 0, 'w'},
 		{"critical", required_argument, 0, 'c'},
@@ -467,7 +471,7 @@ int process_arguments(int argc, char **argv){
 		usage ("\n");
 
 	while (1) {
-		c = getopt_long (argc, argv, "Vhv46qw:c:t:H:p:o:", longopts, &option);
+		c = getopt_long (argc, argv, "Vhv46qiw:c:t:H:p:o:", longopts, &option);
 		if (c == -1 || c == EOF || c == 1)
 			break;
 
@@ -485,6 +489,9 @@ int process_arguments(int argc, char **argv){
 			break;
 		case 'q':
 			quiet = 1;
+			break;
+		case 'i':
+			ignore_errors = 1;
 			break;
 		case 'w':
 			owarn = optarg;
@@ -614,6 +621,8 @@ void print_help(void){
 	printf (UT_HOST_PORT, 'p', "123");
 	printf (" %s\n", "-q, --quiet");
 	printf ("    %s\n", _("Returns UNKNOWN instead of CRITICAL if offset cannot be found"));
+	printf (" %s\n", "-i, --ignore-errors");
+	printf ("    %s\n", _("Won't check leap indicator or if stratum is zero"));
 	printf (" %s\n", "-w, --warning=THRESHOLD");
 	printf ("    %s\n", _("Offset to result in warning status (seconds)"));
 	printf (" %s\n", "-c, --critical=THRESHOLD");
